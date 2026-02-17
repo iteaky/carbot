@@ -1,0 +1,226 @@
+.tg-chat-root {
+  --tg-bg: #0f141b;
+  --tg-panel: #18222d;
+  --tg-panel-border: #243445;
+  --tg-message-bot: #1f2c39;
+  --tg-message-user: #2b5278;
+  --tg-accent: #5ea3e2;
+  --tg-text-main: #e6edf3;
+  --tg-text-soft: #9fb2c5;
+  --tg-input-bg: #15202b;
+  --tg-input-border: #2a3b4d;
+  --tg-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #1e2c3a 0%, transparent 45%),
+    radial-gradient(800px 500px at 100% 0%, #162432 0%, transparent 50%),
+    var(--tg-bg);
+  color: var(--tg-text-main);
+}
+
+.tg-chat-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--tg-panel-border);
+  background: rgba(24, 34, 45, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.tg-chat-header-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.tg-chat-title {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.2;
+  color: var(--tg-text-main);
+  letter-spacing: 0.2px;
+}
+
+.tg-chat-status {
+  color: var(--tg-text-soft);
+  font-size: 12px;
+}
+
+.tg-chat-messages {
+  flex: 1 1 auto;
+  overflow: auto;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 14px 16px 10px;
+  box-sizing: border-box;
+}
+
+.tg-row {
+  display: flex;
+  margin: 0 0 8px;
+}
+
+.tg-row-user {
+  justify-content: flex-end;
+}
+
+.tg-row-bot {
+  justify-content: flex-start;
+}
+
+.tg-bubble {
+  max-width: 72%;
+  padding: 8px 11px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  box-shadow: var(--tg-shadow);
+  animation: tg-appear 140ms ease-out;
+}
+
+.tg-bubble.tg-user {
+  background: linear-gradient(160deg, #2f5d8a, var(--tg-message-user));
+  border-top-right-radius: 8px;
+  border-color: #396792;
+}
+
+.tg-bubble.tg-bot {
+  background: linear-gradient(160deg, #243648, var(--tg-message-bot));
+  border-top-left-radius: 8px;
+  border-color: #2e4359;
+}
+
+.tg-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.tg-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-accent);
+}
+
+.tg-time {
+  font-size: 11px;
+  color: var(--tg-text-soft);
+  opacity: 0.9;
+}
+
+.tg-text {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+  font-size: 14px;
+  color: var(--tg-text-main);
+}
+
+.tg-chat-composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border-top: 1px solid var(--tg-panel-border);
+  background: rgba(24, 34, 45, 0.93);
+  backdrop-filter: blur(8px);
+}
+
+.tg-chat-input {
+  flex: 1;
+  --vaadin-input-field-value-color: #ffffff;
+  --vaadin-input-field-placeholder-color: #93a8bb;
+  color: #ffffff;
+}
+
+.tg-chat-input::part(input-field) {
+  background: var(--tg-input-bg);
+  border: 1px solid var(--tg-input-border);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.tg-chat-input::part(value) {
+  color: #ffffff;
+}
+
+.tg-chat-send {
+  background: linear-gradient(180deg, #63a9e8, #4e93d2);
+  color: #0a1724;
+  border-radius: 18px;
+  font-weight: 700;
+  border: 0;
+  padding: 0 14px;
+  min-width: 108px;
+  height: 38px;
+}
+
+.tg-chat-send:hover {
+  filter: brightness(1.06);
+}
+
+.tg-chat-send:active {
+  transform: translateY(1px);
+}
+
+.tg-typing .tg-text {
+  color: #c9d6e2;
+  font-style: italic;
+  animation: tg-thinking 1s ease-in-out infinite;
+}
+
+@keyframes tg-appear {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tg-thinking {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+@media (max-width: 900px) {
+  .tg-chat-messages {
+    padding: 10px 10px 8px;
+  }
+
+  .tg-chat-header {
+    padding: 12px;
+  }
+
+  .tg-chat-composer {
+    padding: 10px;
+  }
+
+  .tg-bubble {
+    max-width: 86%;
+    padding: 8px 10px;
+    border-radius: 14px;
+  }
+
+  .tg-chat-send {
+    min-width: 92px;
+    height: 36px;
+  }
+}

@@ -1,11 +1,14 @@
 package com.epam.carbot.service.impl;
 
 import com.epam.carbot.domain.BotAnswer;
+import com.epam.carbot.domain.BotReply;
 import com.epam.carbot.domain.Memory;
+import com.epam.carbot.dto.chat.ChatMessage;
 import com.epam.carbot.dto.generate.GenerateRequest;
 import com.epam.carbot.dto.generate.GenerateResponse;
 import com.epam.carbot.service.CarBotService;
 import com.epam.carbot.service.llm.BotAnswerParser;
+import com.epam.carbot.service.llm.IntentRouter;
 import com.epam.carbot.service.llm.LlmBusyException;
 import com.epam.carbot.service.llm.LlmClient;
 import com.epam.carbot.service.llm.LlmInvalidRequestException;
@@ -40,9 +43,13 @@ public class CarBotServiceImpl implements CarBotService {
                - задай ОДИН вопрос только про ПЕРВОЕ поле из missingFields.
             4) Если missingFields пуст:
                - предложи 2-3 конкретные модели авто под параметры и кратко объясни почему.
-            5) summary — коротко (1-2 строки) факты.
+             5) summary — коротко (1-2 строки) факты.
+             6) Если intent=ASK_CLARIFICATION_AND_RETURN_TO_FIELD и missingFields НЕ пуст:
+                - сначала ответь кратко на вопрос пользователя (1-2 предложения),
+                - затем задай один вопрос только про pendingField,
+                - memory не меняй по смыслу.
 
-            ФОРМАТ (строго JSON):
+             ФОРМАТ (строго JSON):
             {
               "reply": "string",
               "memory": {
@@ -67,31 +74,62 @@ public class CarBotServiceImpl implements CarBotService {
     private final BotAnswerParser answerParser;
     private final MemoryStore memoryStore;
     private final MemoryService memoryService;
+    private final IntentRouter intentRouter;
 
     public CarBotServiceImpl(
             LlmClient llmClient,
             PromptBuilder promptBuilder,
             BotAnswerParser answerParser,
             MemoryStore memoryStore,
-            MemoryService memoryService
+            MemoryService memoryService,
+            IntentRouter intentRouter
     ) {
         this.llmClient = llmClient;
         this.promptBuilder = promptBuilder;
         this.answerParser = answerParser;
         this.memoryStore = memoryStore;
         this.memoryService = memoryService;
+        this.intentRouter = intentRouter;
     }
 
     @Override
-    public String reply(String username, String userText) {
-        return sendRequest(username, userText);
+    public BotReply reply(String sessionId, String username, String userText, List<ChatMessage> recentHistory, String pendingField) {
+        return sendRequest(sessionId, username, userText, recentHistory, pendingField);
     }
 
-    public String sendRequest(String username, String message) {
-        Memory current = memoryStore.get(username);
+    public BotReply sendRequest(
+            String sessionId,
+            String username,
+            String message,
+            List<ChatMessage> recentHistory,
+            String pendingField
+    ) {
+        logger.debug("processing message for user={}, session={}", username, sessionId);
+        Memory current = memoryStore.get(sessionId);
 
         List<String> missingFields = memoryService.computeMissingFields(current);
-        String prompt = promptBuilder.build(SYSTEM_PROMPT, current, missingFields, message);
+        String expectedField = missingFields.isEmpty() ? null : missingFields.get(0);
+
+        IntentRouter.Intent intent = intentRouter.detectIntent(message, missingFields, pendingField);
+
+        if (expectedField != null && intent == IntentRouter.Intent.OTHER) {
+            return new BotReply(fieldQuestion(expectedField), expectedField);
+        }
+
+        String flowIntent = intent.name();
+        if (expectedField != null && intent == IntentRouter.Intent.ASK_CLARIFICATION) {
+            flowIntent = "ASK_CLARIFICATION_AND_RETURN_TO_FIELD";
+        }
+
+        String prompt = promptBuilder.build(
+                SYSTEM_PROMPT,
+                current,
+                missingFields,
+                expectedField,
+                flowIntent,
+                recentHistory,
+                message
+        );
         GenerateRequest request = new GenerateRequest(prompt, "new", null);
 
         GenerateResponse body;
@@ -99,17 +137,17 @@ public class CarBotServiceImpl implements CarBotService {
             body = llmClient.generate(request);
         } catch (LlmBusyException e) {
             logger.warn("llm busy: {}", e.getMessage());
-            return BUSY_MESSAGE;
+            return new BotReply(BUSY_MESSAGE, expectedField);
         } catch (LlmInvalidRequestException e) {
             logger.warn("llm invalid request: {}", e.getMessage());
-            return INVALID_MESSAGE;
+            return new BotReply(INVALID_MESSAGE, expectedField);
         } catch (LlmServiceException e) {
             logger.error("llm error", e);
-            return ERROR_MESSAGE;
+            return new BotReply(ERROR_MESSAGE, expectedField);
         }
 
         if (body == null || Boolean.FALSE.equals(body.ok()) || body.text() == null) {
-            return UNHEARD_MESSAGE;
+            return new BotReply(UNHEARD_MESSAGE, expectedField);
         }
 
         String content = body.text();
@@ -117,22 +155,39 @@ public class CarBotServiceImpl implements CarBotService {
         try {
             BotAnswer answer = answerParser.parse(content);
 
+            if (expectedField != null && intent == IntentRouter.Intent.ASK_CLARIFICATION) {
+                return new BotReply(answer.reply(), expectedField);
+            }
+
             Memory merged = (current != null)
                     ? memoryService.merge(current, answer.memory())
                     : memoryService.sanitizeNewMemory(answer.memory());
 
-            memoryStore.put(username, merged);
+            memoryStore.put(sessionId, merged);
+
+            List<String> nextMissingFields = memoryService.computeMissingFields(merged);
+            String nextPendingField = nextMissingFields.isEmpty() ? null : nextMissingFields.get(0);
 
             String reply = answer.reply();
 
             logger.info("answer: {}", reply);
             logger.info("answer memory: {}", merged);
 
-            return reply;
+            return new BotReply(reply, nextPendingField);
 
         } catch (Exception e) {
             logger.warn("parse error", e);
-            return UNHEARD_MESSAGE;
+            return new BotReply(UNHEARD_MESSAGE, expectedField);
         }
+    }
+
+    private String fieldQuestion(String field) {
+        return switch (field) {
+            case "budget" -> "Чтобы подобрать варианты, подскажите ваш бюджет?";
+            case "country" -> "В какой стране или городе планируете покупать авто?";
+            case "purpose" -> "Для каких задач нужен автомобиль: город, трасса, семья, работа?";
+            case "body_type" -> "Какой тип кузова рассматриваете: седан, кроссовер, универсал?";
+            default -> "Уточните, пожалуйста, недостающие параметры для подбора.";
+        };
     }
 }

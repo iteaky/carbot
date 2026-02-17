@@ -22,22 +22,24 @@ public class MemoryService {
         if (oldM == null) return sanitizeNewMemory(newM);
         if (newM == null) return oldM;
 
-        return new Memory(
+        Memory merged = new Memory(
                 firstNonBlank(newM.budget(), oldM.budget()),
                 firstNonBlank(newM.country(), oldM.country()),
                 firstNonBlank(newM.purpose(), oldM.purpose()),
                 firstNonBlank(newM.body_type(), oldM.body_type()),
                 firstNonBlank(newM.summary(), oldM.summary())
         );
+
+        return sanitizeNewMemory(merged);
     }
 
     public Memory sanitizeNewMemory(Memory m) {
         if (m == null) return new Memory(null, null, null, null, "");
         return new Memory(
-                blankToNull(m.budget()),
-                blankToNull(m.country()),
+                normalizeBudget(m.budget()),
+                normalizeCountry(m.country()),
                 blankToNull(m.purpose()),
-                blankToNull(m.body_type()),
+                normalizeBodyType(m.body_type()),
                 (m.summary() == null ? "" : m.summary().trim())
         );
     }
@@ -53,5 +55,36 @@ public class MemoryService {
     private static String firstNonBlank(String preferred, String fallback) {
         String p = blankToNull(preferred);
         return p != null ? p : blankToNull(fallback);
+    }
+
+    private static String normalizeBudget(String budget) {
+        String value = blankToNull(budget);
+        if (value == null) {
+            return null;
+        }
+
+        String normalized = value.replaceAll("\\s+", " ");
+        if (normalized.length() > 40) {
+            return null;
+        }
+        return normalized;
+    }
+
+    private static String normalizeCountry(String country) {
+        String value = blankToNull(country);
+        if (value == null) {
+            return null;
+        }
+
+        String lower = value.toLowerCase();
+        if (lower.length() == 1) {
+            return lower.toUpperCase();
+        }
+        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+    }
+
+    private static String normalizeBodyType(String bodyType) {
+        String value = blankToNull(bodyType);
+        return value == null ? null : value.toLowerCase();
     }
 }

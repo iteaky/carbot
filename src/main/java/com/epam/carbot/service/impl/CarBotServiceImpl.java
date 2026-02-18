@@ -23,21 +23,24 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+import static com.epam.carbot.service.impl.ChatMode.INCOGNITO;
+
 @Service
 @Primary
 public class CarBotServiceImpl implements CarBotService {
 
     private static final String SYSTEM_PROMPT = """
             Ты автомобильный консультант по ПОКУПКЕ авто. Возвращай ТОЛЬКО один JSON-объект.
-
+            
             ЗАДАЧА:
             - Веди разговор проактивно: сам направляй пользователя к покупке.
             - Память обязательна: используй memory как источник истины.
             - Не усложняй: задавай короткие, понятные вопросы.
-
-            ПРАВИЛА:
-            0) Всегда отвечай в поле reply.
-            1) Если поле в memory уже заполнено — НЕ переспрашивай.
+            
+             ПРАВИЛА:
+             0) Всегда отвечай в поле reply.
+             0.1) Выводи только JSON-объект, без markdown, без ```json и без пояснений вне JSON.
+             1) Если поле в memory уже заполнено — НЕ переспрашивай.
             2) Не сбрасывай заполненные поля в null. Если не уверен — оставь как есть.
             3) missingFields — список полей, которые нужно добрать. Если missingFields НЕ пуст:
                - задай ОДИН вопрос только про ПЕРВОЕ поле из missingFields.
@@ -48,7 +51,7 @@ public class CarBotServiceImpl implements CarBotService {
                 - сначала ответь кратко на вопрос пользователя (1-2 предложения),
                 - затем задай один вопрос только про pendingField,
                 - memory не меняй по смыслу.
-
+            
              ФОРМАТ (строго JSON):
             {
               "reply": "string",
@@ -130,7 +133,7 @@ public class CarBotServiceImpl implements CarBotService {
                 recentHistory,
                 message
         );
-        GenerateRequest request = new GenerateRequest(prompt, "new", null);
+        GenerateRequest request = new GenerateRequest(prompt, INCOGNITO.getCode(), null);
 
         GenerateResponse body;
         try {
